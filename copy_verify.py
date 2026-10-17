@@ -1,40 +1,14 @@
 """Copy files between directories and verify each copy with SHA-256."""
 
-import argparse
 import hashlib
-import json
 import shutil
-import sys
-from dataclasses import dataclass
 from pathlib import Path
+
+from manifest import Manifest, ManifestEntry
 
 
 class CopyVerificationError(Exception):
     """Raised when a copied file does not match its source."""
-
-
-@dataclass
-class ManifestEntry:
-    path: Path
-    size_bytes: int
-    sha256: str
-
-    def to_json(self) -> str:
-        """Serialize the manifest entry as a JSON object."""
-        return json.dumps({
-            "path": str(self.path),
-            "size_bytes": self.size_bytes,
-            "sha256": self.sha256,
-        })
-
-
-@dataclass
-class Manifest:
-    entries: list[ManifestEntry]
-
-    def to_json(self) -> str:
-        """Serialize the manifest as a JSON array of manifest entries."""
-        return json.dumps([json.loads(entry.to_json()) for entry in self.entries])
 
 
 def sha256_file(path: Path) -> str:
@@ -112,35 +86,6 @@ def copy_directory_verified(source: Path, destination: Path) -> Manifest:
     ]
     return Manifest([ManifestEntry(
         path=path,
-        size_bytes=path.stat().st_size,
+        file_size_bytes=path.stat().st_size,
         sha256=sha256_file(path)
     ) for path in destination_paths])
-
-
-def _create_argument_parser() -> argparse.ArgumentParser:
-    """Create the command-line argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Recursively copy files and verify each copy with SHA-256."
-    )
-    parser.add_argument("source", type=Path,
-                        help="Directory to copy files from")
-    parser.add_argument("destination", type=Path,
-                        help="Directory to copy files to")
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = _create_argument_parser().parse_args(argv)
-
-    try:
-        manifest = copy_directory_verified(args.source, args.destination)
-    except (OSError, ValueError, CopyVerificationError) as error:
-        print(f"Error: {error}", file=sys.stderr)
-        return 1
-
-    print(manifest.to_json())
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

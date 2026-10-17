@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import copy_verify
+import main
 
 
 class CopyDirectoryVerifiedTests(unittest.TestCase):
@@ -22,8 +23,15 @@ class CopyDirectoryVerifiedTests(unittest.TestCase):
             manifest = copy_verify.copy_directory_verified(source, destination)
 
             self.assertEqual(
-                manifest.paths,
-                [destination / "first.txt", destination / "nested" / "second.bin"],
+                [entry.path for entry in manifest.entries],
+                [
+                    destination / "first.txt",
+                    destination / "nested" / "second.bin",
+                ],
+            )
+            self.assertEqual(
+                [entry.file_size_bytes for entry in manifest.entries],
+                [len(b"first file"), len(b"\x00\x01second")],
             )
             self.assertEqual(
                 (destination / "first.txt").read_bytes(), b"first file"
@@ -43,12 +51,16 @@ class CopyDirectoryVerifiedTests(unittest.TestCase):
             output = StringIO()
 
             with redirect_stdout(output):
-                result = copy_verify.main([str(source), str(destination)])
+                result = main.main([str(source), str(destination)])
 
             self.assertEqual(result, 0)
             self.assertEqual(
                 json.loads(output.getvalue()),
-                [str(destination / "file.txt")],
+                [{
+                    "path": str(destination / "file.txt"),
+                    "file_size_bytes": len("content"),
+                    "sha256": copy_verify.sha256_file(destination / "file.txt"),
+                }],
             )
 
     def test_raises_when_destination_hash_differs(self):
@@ -60,7 +72,9 @@ class CopyDirectoryVerifiedTests(unittest.TestCase):
             (source / "file.txt").write_text("source")
 
             def corrupt_copy(source_file, destination_file):
-                destination_file.write_text("corrupted")
+                destination_file.write_text(
+                    f"{source_file.read_text()}corrupted"
+                )
 
             with patch("copy_verify.shutil.copy2", side_effect=corrupt_copy):
                 with self.assertRaisesRegex(
