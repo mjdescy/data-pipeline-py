@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import copy_verify
 import main
+from manifest import Manifest
 
 
 class CopyDirectoryVerifiedTests(unittest.TestCase):
@@ -145,6 +146,25 @@ class CopyDirectoryVerifiedTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "inside it"):
                 copy_verify.copy_directory_verified(source, source / "destination")
+
+    def test_manifest_from_directory_tree_includes_each_file(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            nested = root / "nested"
+            nested.mkdir()
+            (root / "first.txt").write_text("first")
+            (nested / "second.txt").write_text("second")
+
+            manifest = Manifest.from_directory_tree(root)
+
+            self.assertEqual(
+                {entry.path for entry in manifest.entries},
+                {root / "first.txt", nested / "second.txt"},
+            )
+            self.assertEqual(
+                {entry.path: entry.file_size_bytes for entry in manifest.entries},
+                {root / "first.txt": 5, nested / "second.txt": 6},
+            )
 
 
 if __name__ == "__main__":

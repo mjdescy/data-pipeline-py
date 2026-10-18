@@ -3,6 +3,7 @@ Classes for file manifests.
 """
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,14 +50,34 @@ class ManifestEntry:
 
 class Manifest:
     """A file manifest containing multiple manifest entries."""
-    def __init__(self) -> None:
-        self.entries: list[ManifestEntry] = []
+
+    def __init__(self, entries: list[ManifestEntry] | None = None) -> None:
+        self.entries = entries if entries is not None else []
 
     def add_entry(self, entry: ManifestEntry) -> None:
         """Add a manifest entry to the manifest."""
         if not hasattr(self, "entries"):
             self.entries = []
         self.entries.append(entry)
+
+    @classmethod
+    def from_paths(cls, paths: list[Path]) -> "Manifest":
+        """Create a manifest from a list of file paths."""
+        manifest = cls()
+        for path in paths:
+            manifest.add_entry(ManifestEntry.from_path(path))
+        return manifest
+
+    @classmethod
+    def from_directory_tree(cls, root: Path) -> "Manifest":
+        """Create a manifest from all files in a directory tree."""
+        manifest = cls()
+        paths = [path for path in root.rglob("*") if path.is_file()]
+        with ThreadPoolExecutor() as executor:
+            manifest.entries.extend(
+                executor.map(ManifestEntry.from_path, paths)
+            )
+        return manifest
 
     def to_json(self) -> str:
         """Serialize the manifest as a JSON array of manifest entries."""
