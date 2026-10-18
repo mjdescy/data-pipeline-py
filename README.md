@@ -37,5 +37,5 @@ mismatch is detected.
 Run the tests with:
 
 ```bash
-python -m unittest
+python -m unittest discover -v
 ```
