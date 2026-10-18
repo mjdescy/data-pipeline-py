@@ -34,6 +34,14 @@ contains `ManifestEntry` objects. `Manifest.to_json()` serializes them as a
 JSON array of objects. The function raises `CopyVerificationError` if a hash
 mismatch is detected.
 
+Compression uses Python 3.14's standard-library Zstandard support. Use
+`compress.compress_file(source, archive_path)` to create a single-file `.zst`
+stream, or `compress.compress_directory(source, archive_path)` to create a
+recursive `.tar.zst` archive. Both use the maximum Zstandard compression level
+and return a `Manifest` with an entry for each archived file. Each archive is
+accompanied by a JSON sidecar named `<archive name>.manifest.json`; manifest
+paths are the file names stored inside the archive.
+
 Run the tests with:
 
 ```bash
