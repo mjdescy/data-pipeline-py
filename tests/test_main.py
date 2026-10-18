@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+import verify
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -39,7 +40,7 @@ class MainTests(unittest.TestCase):
                 [{
                     "path": str(destination / "file.txt"),
                     "file_size_bytes": len("content"),
-                    "sha256": copy_verify.sha256_file(destination / "file.txt"),
+                    "sha256": verify.compute_file_sha256(destination / "file.txt"),
                 }],
             )
 

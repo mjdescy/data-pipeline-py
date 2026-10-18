@@ -1,21 +1,12 @@
 """
 Classes for file manifests.
 """
-import hashlib
+
 import json
+import verify
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-
-
-def _compute_sha256(path: Path) -> str:
-    """Compute the SHA-256 hash of a file."""
-    sha256_hash = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(chunk)
-    return sha256_hash.hexdigest()
-
 
 @dataclass
 class ManifestEntry:
@@ -32,7 +23,7 @@ class ManifestEntry:
             raise FileNotFoundError(f"Path does not point to a file: {path}")
 
         file_size_bytes = path.stat().st_size
-        sha256_hash = _compute_sha256(path)
+        sha256_hash = verify.compute_file_sha256(path)
         return cls(
             path=path,
             file_size_bytes=file_size_bytes,

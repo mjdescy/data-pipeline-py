@@ -1,7 +1,7 @@
 """Copy files between directories and verify each copy with SHA-256."""
 
-import hashlib
 import shutil
+import verify
 from pathlib import Path
 
 from manifest import Manifest, ManifestEntry
@@ -9,15 +9,6 @@ from manifest import Manifest, ManifestEntry
 
 class CopyVerificationError(Exception):
     """Raised when a copied file does not match its source."""
-
-
-def sha256_file(path: Path) -> str:
-    """Return the SHA-256 digest of a file, reading it in chunks."""
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def copy_file_verified(source: Path, destination: Path) -> None:
@@ -29,9 +20,9 @@ def _copy_file_verified(
     source: Path, destination: Path, display_path: Path
 ) -> None:
     """Copy a file and report digest mismatches using the given path."""
-    source_hash = sha256_file(source)
+    source_hash = verify.compute_file_sha256(source)
     shutil.copy2(source, destination)
-    destination_hash = sha256_file(destination)
+    destination_hash = verify.compute_file_sha256(destination)
 
     if source_hash != destination_hash:
         raise CopyVerificationError(
@@ -87,5 +78,5 @@ def copy_directory_verified(source: Path, destination: Path) -> Manifest:
     return Manifest([ManifestEntry(
         path=path,
         file_size_bytes=path.stat().st_size,
-        sha256=sha256_file(path)
+        sha256=verify.compute_file_sha256(path)
     ) for path in destination_paths])
