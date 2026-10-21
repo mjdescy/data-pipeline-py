@@ -1,7 +1,9 @@
 """Copy and move files while verifying copies with SHA-256."""
 
+import errno
 import shutil
 import verify
+from dataclasses import dataclass
 from pathlib import Path
 
 from manifest import Manifest, ManifestEntry
@@ -9,6 +11,14 @@ from manifest import Manifest, ManifestEntry
 
 class CopyVerificationError(Exception):
     """Raised when a copied file does not match its source."""
+
+
+@dataclass
+class DirectoryOperationResult:
+    """Manifest and per-file errors from a directory copy or move."""
+
+    manifest: Manifest
+    errors: list[str]
 
 
 def copy_file_verified(source: Path, destination: Path) -> Manifest:
@@ -73,34 +83,43 @@ def _copy_directory_file(
     )
 
 
-def copy_directory_verified(source: Path, destination: Path) -> Manifest:
+def copy_directory_verified(
+    source: Path, destination: Path
+) -> DirectoryOperationResult:
     """Copy source files recursively, verifying each destination with SHA-256.
 
     Files are copied with their paths relative to source. Existing destination
-    files are overwritten. Raises OSError for filesystem failures and
-    CopyVerificationError when a source and destination digest differ. Returns
-    a manifest of the verified destination paths.
+    files are overwritten. All files are attempted. Returns a manifest of
+    verified destination paths and a list of error messages for failed files.
     """
     source, destination = _resolve_and_validate_directories(
         source, destination
     )
 
     files = sorted(path for path in source.rglob("*") if path.is_file())
-    entries = [
-        _copy_directory_file(source_file, source, destination)
-        for source_file in files
-    ]
-    return Manifest(entries)
+    entries: list[ManifestEntry] = []
+    errors: list[str] = []
+    for source_file in files:
+        relative_path = source_file.relative_to(source)
+        try:
+            entries.append(
+                _copy_directory_file(source_file, source, destination)
+            )
+        except (OSError, CopyVerificationError) as error:
+            errors.append(f"{relative_path}: {error}")
+    return DirectoryOperationResult(Manifest(entries), errors)
 
 
-def move_directory_verified(source: Path, destination: Path) -> Manifest:
+def move_directory_verified(
+    source: Path, destination: Path
+) -> DirectoryOperationResult:
     """Move a directory tree by copying and verifying each file before deletion.
 
     Files are copied with their paths relative to source. Existing destination
     files are overwritten. Each source file is deleted only after its copy has
     been verified with SHA-256. Empty directories beneath source are then
-    removed; source itself is preserved. Returns a manifest of the destination
-    files. Filesystem and verification failures are raised to the caller.
+    removed; source itself is preserved. All files are attempted. Returns a
+    manifest of verified destination files and a list of error messages.
     """
     source, destination = _resolve_and_validate_directories(
         source, destination
@@ -116,10 +135,20 @@ def move_directory_verified(source: Path, destination: Path) -> Manifest:
         reverse=True,
     )
     entries: list[ManifestEntry] = []
+    errors: list[str] = []
     for source_file in files:
-        entry = _copy_directory_file(source_file, source, destination)
-        source_file.unlink()
-        entries.append(entry)
+        relative_path = source_file.relative_to(source)
+        try:
+            entry = _copy_directory_file(source_file, source, destination)
+            entries.append(entry)
+            source_file.unlink()
+        except (OSError, CopyVerificationError) as error:
+            errors.append(f"{relative_path}: {error}")
     for directory in directories:
-        directory.rmdir()
-    return Manifest(entries)
+        try:
+            directory.rmdir()
+        except OSError as error:
+            if error.errno != errno.ENOTEMPTY:
+                relative_path = directory.relative_to(source)
+                errors.append(f"{relative_path}: {error}")
+    return DirectoryOperationResult(Manifest(entries), errors)

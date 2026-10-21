@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import main
+from file_transfer import DirectoryOperationResult
+from manifest import Manifest
 
 
 class MainTests(unittest.TestCase):
@@ -68,6 +70,34 @@ class MainTests(unittest.TestCase):
             self.assertEqual(result, 1)
             self.assertFalse(manifest_path.exists())
             self.assertIn("copy failed", stderr.getvalue())
+
+    def test_cli_reports_collected_copy_errors(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            destination = root / "destination"
+            manifest_path = root / "manifest.json"
+            source.mkdir()
+            stderr = StringIO()
+            result_data = DirectoryOperationResult(
+                manifest=Manifest(), errors=["file.txt: copy failed"]
+            )
+
+            with (
+                patch(
+                    "main.copy_directory_verified",
+                    return_value=result_data,
+                ),
+                redirect_stderr(stderr),
+            ):
+                result = main.main([
+                    str(source), str(destination), "--manifest",
+                    str(manifest_path),
+                ])
+
+            self.assertEqual(result, 1)
+            self.assertEqual(json.loads(manifest_path.read_text()), [])
+            self.assertIn("file.txt: copy failed", stderr.getvalue())
 
     def test_manifest_path_cannot_be_inside_destination(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

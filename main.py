@@ -86,10 +86,15 @@ def main(argv: list[str] | None = None) -> int:
         manifest_path = _prepare_manifest_path(
             args.manifest, args.source, args.destination
         )
-        manifest = copy_directory_verified(args.source, args.destination)
-        _write_manifest_atomically(manifest, manifest_path)
+        result = copy_directory_verified(args.source, args.destination)
+        _write_manifest_atomically(result.manifest, manifest_path)
     except (OSError, ValueError, CopyVerificationError) as error:
         print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    if result.errors:
+        for error in result.errors:
+            print(f"Error: {error}", file=sys.stderr)
         return 1
 
     print(f"Wrote manifest to {manifest_path}", file=sys.stderr)

@@ -1,8 +1,8 @@
 # Verified file copy and move
 
 Copy files recursively from one directory to another and verify each copied
-file by comparing its SHA-256 digest before and after the copy. On success,
-the command atomically publishes a JSON manifest file.
+file by comparing its SHA-256 digest before and after the copy. The command
+atomically publishes a JSON manifest of files copied successfully.
 
 ```bash
 python main.py /path/to/folder-a /path/to/folder-b
@@ -13,8 +13,10 @@ directory. Set `--manifest /path/to/manifest.json` to choose another location.
 The manifest is first written and flushed to a temporary file in the same
 directory, then atomically renamed into place. A previous manifest at that
 path is removed when a run starts, so a failed run cannot leave an older
-manifest looking like the result of the current run. The manifest path must
-not be inside the source or destination directory.
+manifest looking like the result of the current run. If individual file
+operations fail, a manifest of successful copies is still published and the
+command exits with a non-zero status. The manifest path must not be inside the
+source or destination directory.
 
 The utility preserves paths relative to the source directory and overwrites
 files with matching destination paths. Each manifest entry contains the
@@ -29,14 +31,17 @@ for the current run. Coordinate concurrent runs targeting the same manifest
 path externally.
 
 The Python functions `copy_file_verified(source, destination)` and
-`copy_directory_verified(source, destination)` copy one file or a directory
-tree. The corresponding `move_file_verified(source, destination)` and
-`move_directory_verified(source, destination)` functions move files by copying
-and verifying each destination's SHA-256 hash before deleting its source.
-Every function returns a `Manifest` containing `ManifestEntry` objects for the
-destination files. Filesystem failures and hash mismatches are raised to the
-caller; a source file is not deleted if its copy fails verification.
-`Manifest.to_json()` serializes the entries as a JSON array of objects.
+`move_file_verified(source, destination)` operate on one file and return a
+`Manifest`. The directory functions `copy_directory_verified(source,
+destination)` and `move_directory_verified(source, destination)` return a
+`DirectoryOperationResult` with a `manifest` of successfully copied
+destinations and an `errors` list. They attempt every source file, reporting
+filesystem failures and hash mismatches in that list. A move deletes a source
+file only after its destination copy is verified. Once files are processed,
+empty directories beneath the source are removed; the source directory itself
+is preserved. The CLI writes the manifest of successful copies and exits
+non-zero if any file operation failed. `Manifest.to_json()` serializes entries
+as a JSON array of objects.
 
 Compression uses Python 3.14's standard-library Zstandard support. Use
 `compress.compress_file(source, archive_path)` to create a single-file `.zst`
