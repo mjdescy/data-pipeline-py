@@ -147,9 +147,12 @@ class MoveDirectoryVerifiedTests(unittest.TestCase):
             root = Path(temporary_directory)
             source = root / "source"
             destination = root / "destination"
-            (source / "nested").mkdir(parents=True)
+            (source / "nested" / "deeper").mkdir(parents=True)
+            (source / "empty").mkdir()
             (source / "first.txt").write_bytes(b"first file")
-            (source / "nested" / "second.bin").write_bytes(b"\x00second")
+            (source / "nested" / "deeper" / "second.bin").write_bytes(
+                b"\x00second"
+            )
 
             manifest = file_transfer.move_directory_verified(
                 source, destination
@@ -159,11 +162,17 @@ class MoveDirectoryVerifiedTests(unittest.TestCase):
                 [entry.path for entry in manifest.entries],
                 [
                     destination / "first.txt",
-                    destination / "nested" / "second.bin",
+                    destination / "nested" / "deeper" / "second.bin",
                 ],
             )
             self.assertFalse((source / "first.txt").exists())
-            self.assertFalse((source / "nested" / "second.bin").exists())
+            self.assertFalse(
+                (source / "nested" / "deeper" / "second.bin").exists()
+            )
+            self.assertTrue(source.is_dir())
+            self.assertFalse((source / "nested").exists())
+            self.assertFalse((source / "nested" / "deeper").exists())
+            self.assertFalse((source / "empty").exists())
             for entry in manifest.entries:
                 self.assertEqual(
                     entry.sha256,

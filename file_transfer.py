@@ -98,17 +98,28 @@ def move_directory_verified(source: Path, destination: Path) -> Manifest:
 
     Files are copied with their paths relative to source. Existing destination
     files are overwritten. Each source file is deleted only after its copy has
-    been verified with SHA-256. Returns a manifest of the destination files.
-    Filesystem and verification failures are raised to the caller.
+    been verified with SHA-256. Empty directories beneath source are then
+    removed; source itself is preserved. Returns a manifest of the destination
+    files. Filesystem and verification failures are raised to the caller.
     """
     source, destination = _resolve_and_validate_directories(
         source, destination
     )
 
     files = sorted(path for path in source.rglob("*") if path.is_file())
+    directories = sorted(
+        (
+            path for path in source.rglob("*")
+            if path.is_dir() and not path.is_symlink()
+        ),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    )
     entries: list[ManifestEntry] = []
     for source_file in files:
         entry = _copy_directory_file(source_file, source, destination)
         source_file.unlink()
         entries.append(entry)
+    for directory in directories:
+        directory.rmdir()
     return Manifest(entries)
