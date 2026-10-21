@@ -1,4 +1,4 @@
-# Verified file copy
+# Verified file copy and move
 
 Copy files recursively from one directory to another and verify each copied
 file by comparing its SHA-256 digest before and after the copy. On success,
@@ -28,11 +28,15 @@ before reading `manifest.json`; a missing file means no manifest was published
 for the current run. Coordinate concurrent runs targeting the same manifest
 path externally.
 
-The function `copy_directory_verified(source, destination)` is also available
-for use from Python code. It returns a `Manifest` whose `entries` field
-contains `ManifestEntry` objects. `Manifest.to_json()` serializes them as a
-JSON array of objects. The function raises `CopyVerificationError` if a hash
-mismatch is detected.
+The Python functions `copy_file_verified(source, destination)` and
+`copy_directory_verified(source, destination)` copy one file or a directory
+tree. The corresponding `move_file_verified(source, destination)` and
+`move_directory_verified(source, destination)` functions move files by copying
+and verifying each destination's SHA-256 hash before deleting its source.
+Every function returns a `Manifest` containing `ManifestEntry` objects for the
+destination files. Filesystem failures and hash mismatches are raised to the
+caller; a source file is not deleted if its copy fails verification.
+`Manifest.to_json()` serializes the entries as a JSON array of objects.
 
 Compression uses Python 3.14's standard-library Zstandard support. Use
 `compress.compress_file(source, archive_path)` to create a single-file `.zst`

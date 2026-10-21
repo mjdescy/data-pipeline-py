@@ -6,7 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from copy_verify import CopyVerificationError, copy_directory_verified
+from file_transfer import CopyVerificationError, copy_directory_verified
 from manifest import Manifest
 
 
